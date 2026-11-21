@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>반어와 역설 마스터: 하루의 일기 창작소</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --secondary: #4f46e5;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --success: #16a34a;
+      --warning: #ea580c;
+      --danger: #dc2626;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+
+    /* 상단 헤더 & 타이머 바 */
+    header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      padding: 20px 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .title-area h1 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .title-area p {
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    /* 초조함 유발 타이머 박스 */
+    .timer-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid #ef4444;
+      border-radius: 12px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .timer-box.urgent {
+      background: rgba(220, 38, 38, 0.28);
+      animation: pulseBorder 1s infinite;
+    }
+
+    .timer-box.completed {
+      border-color: #22c55e;
+      background: rgba(22, 163, 74, 0.2);
+      animation: none;
+    }
+
+    @keyframes pulseBorder {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.03); box-shadow: 0 0 15px 4px rgba(239, 68, 68, 0.5); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    }
+
+    .timer-label {
+      font-size: 0.78rem;
+      color: #fca5a5;
+      font-weight: 700;
+      display: block;
+    }
+
+    .timer-box.completed .timer-label {
+      color: #86efac;
+    }
+
+    .timer-display {
+      font-size: 1.65rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+    }
+
+    .timer-controls select {
+      background: #1e293b;
+      color: white;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    /* 메인 컨테이너 */
+    .container {
+      max-width: 960px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    /* 학생 정보 & 진행률 바 */
+    .student-bar {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .student-inputs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .student-inputs input {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.92rem;
+      width: 140px;
+    }
+
+    .progress-wrapper {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--success));
+      transition: width 0.3s ease;
+    }
+
+    /* 5개 탭 네비게이션 */
+    .tabs-nav {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 768px) {
+      .tabs-nav {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .tab-btn {
+      background: var(--card);
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 10px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      border-color: #93c5fd;
+      transform: translateY(-2px);
+    }
+
+    .tab-btn.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.12);
+    }
+
+    .tab-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .tab-num {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-transform: uppercase;
+    }
+
+    .status-badge {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .status-badge.working {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .status-badge.done {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .tab-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* 탭 콘텐츠 패널 */
+    .panel {
+      display: none;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    .panel.active {
+      display: block;
+      animation: fadeIn 0.25s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-header {
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .panel-header h2 {
+      font-size: 1.3rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .panel-header p {
+      font-size: 0.94rem;
+      color: var(--muted);
+    }
+
+    /* 개념 가이드 박스 */
+    .guide-box {
+      background: #f8fafc;
+      border-left: 4px solid var(--primary);
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-size: 0.9rem;
+    }
+
+    .guide-box strong {
+      color: var(--primary-dark);
+    }
+
+    /* 이전 탭 참조 박스 (일기 & 표현 미리보기) */
+    .reference-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      font-size: 0.9rem;
+    }
+
+    .reference-box .ref-title {
+      font-weight: 800;
+      color: #92400e;
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .reference-box .ref-content {
+      color: #451a03;
+      white-space: pre-wrap;
+    }
+
+    /* 입력 폼 영역 */
+    label.field-label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 0.96rem;
+    }
+
+    textarea, input[type="text"].expr-input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      line-height: 1.6;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+
+    textarea:focus, input[type="text"].expr-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .char-counter {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 0.85rem;
+    }
+
+    .min-rule {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .min-rule.ok {
+      color: var(--success);
+    }
+
+    /* 하단 내비게이션 & 제출 버튼 */
+    .panel-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f0;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 11px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-prev {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .btn-prev:hover {
+      background: #cbd5e1;
+    }
+
+    .btn-next {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-next:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-submit {
+      background: var(--success);
+      color: white;
+      font-size: 1.02rem;
+      padding: 13px 26px;
+      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+    }
+
+    .btn-submit:hover {
+      background: #15803d;
+    }
+
+    /* 초조함 경고 배너 (하단 고정) */
+    .panic-banner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #dc2626;
+      color: white;
+      text-align: center;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.92rem;
+      z-index: 99;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .panic-banner.hidden {
+      display: none;
+    }
+
+    /* 모달 (경고창 & 최종 완료 결과서) */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.72);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      padding: 16px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-card {
+      background: white;
+      border-radius: 16px;
+      max-width: 680px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 28px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-card.alert-mode {
+      max-width: 440px;
+      border-top: 6px solid var(--danger);
+      text-align: center;
+    }
+
+    .alert-icon {
+      font-size: 2.8rem;
+      margin-bottom: 10px;
+    }
+
+    .modal-card h3 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .incomplete-list {
+      text-align: left;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0 20px;
+      color: #991b1b;
+      font-size: 0.92rem;
+    }
+
+    .incomplete-list li {
+      margin-left: 16px;
+      margin-bottom: 4px;
+    }
+
+    /* 최종 결과 리포트 스타일 */
+    .report-section {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    .report-section h4 {
+      font-size: 0.9rem;
+      color: var(--primary-dark);
+      margin-bottom: 6px;
+    }
+
+    .report-section p {
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+
+    .report-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    @media print {
+      header, .student-bar, .tabs-nav, .panel, .panic-banner, .report-actions {
+        display: none !important;
+      }
+      .modal-overlay {
+        position: static;
+        background: none;
+        display: block !important;
+      }
+      .modal-card {
+        box-shadow: none;
+        max-height: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 상단 고정 헤더 & 초조함 유발 카운트다운 타이머 -->
+  <header>
+    <div class="header-inner">
+      <div class="title-area">
+        <h1>✍️ 반어와 역설 마스터: 하루의 일기</h1>
+        <p>5개의 탭을 모두 논리적으로 완성해야 활동이 종료됩니다.</p>
+      </div>
+
+      <div class="timer-box" id="timerBox">
+        <div>
+          <span class="timer-label" id="timerStatusText">⏳ 미완성! 제한 시간 카운트다운</span>
+          <div class="timer-display" id="timerDisplay">15:00</div>
+        </div>
+        <div class="timer-controls">
+          <select id="timeSelect" title="제한 시간 설정">
+            <option value="300">5분</option>
+            <option value="600">10분</option>
+            <option value="900" selected>15분</option>
+            <option value="1200">20분</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 학생 정보 및 전체 달성률 -->
+    <div class="student-bar">
+      <div class="student-inputs">
+        <input type="text" id="studentId" placeholder="학번 (예: 20315)" />
+        <input type="text" id="studentName" placeholder="이름 (예: 김국어)" />
+      </div>
+      <div class="progress-wrapper">
+        <div class="progress-text">
+          <span>전체 미션 완료도</span>
+          <span id="progressCount">0 / 5 탭 완료</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5개 탭 버튼 -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="1">
+        <div class="tab-top">
+          <span class="tab-num">TAB 1</span>
+          <span class="status-badge" id="badge-1">미작성</span>
+        </div>
+        <span class="tab-title">하루의 일기</span>
+      </button>
+
+      <button class="tab-btn" data-tab="2">
+        <div class="tab-top">
+          <span class="tab-num">TAB 2</span>
+          <span class="status-badge" id="badge-2">미작성</span>
+        </div>
+        <span class="tab-title">반어 표현</span>
+      </button>
+
+      <button class="tab-btn" data-tab="3">
+        <div class="tab-top">
+          <span class="tab-num">TAB 3</span>
+          <span class="status-badge" id="badge-3">미작성</span>
+        </div>
+        <span class="tab-title">역설 표현</span>
+      </button>
+
+      <button class="tab-btn" data-tab="4">
+        <div class="tab-top">
+          <span class="tab-num">TAB 4</span>
+          <span class="status-badge" id="badge-4">미작성</span>
+        </div>
+        <span class="tab-title">반어 선택 이유</span>
+      </button>
+
+      <button class="tab-btn" data-tab="5">
+        <div class="tab-top">
+          <span class="tab-num">TAB 5</span>
+          <span class="status-badge" id="badge-5">미작성</span>
+        </div>
+        <span class="tab-title">역설 선택 이유</span>
+      </button>
+    </nav>
+
+    <!-- TAB 1: 하루의 일기 -->
+    <section class="panel active" id="panel-1">
+      <div class="panel-header">
+        <h2>탭 1. 하루의 일기</h2>
+        <p>오늘 겪었거나 인상 깊었던 하나의 구체적인 상황(에피소드)을 선택해 일기처럼 생생하게 작성해 보세요.</p>
+      </div>
+
+      <div class="guide-box">
+        <strong>💡 작성 팁:</strong> 단순한 사실 나열보다 <strong>그때의 상황, 나의 감정, 주변 반응</strong>이 잘 드러나야 다음 탭에서 반어와 역설 표현을 자연스럽게 만들 수 있습니다.
+      </div>
+
+      <label class="field-label" for="input-1">오늘의 에피소드 일기</label>
+      <textarea id="input-1" rows="7" placeholder="예시) 아침부터 늦잠을 자서 허둥지둥 학교에 뛰어갔다. 교실 문을 열자마자 지각을 알아챈 선생님의 매서운 눈빛과 마주쳤고, 엎친 데 덮친 격으로 체육복까지 집에 두고 왔다는 사실을 깨달았다..."></textarea>
+      <div class="char-counter">
+        <span class="min-rule" id="rule-1">최소 60자 이상 작성해야 완료됩니다.</span>
+        <span id="count-1">0자</span>
+      </div>
+
+      <div class="panel-footer">
+        <span></span>
+        <button class="btn btn-next" onclick="goTab(2)">다음: 탭 2 (반어 표현) →</button>
+      </div>
+    </section>
+
+    <!-- TAB 2: 반어 표현 -->
+    <section class="panel" id="panel-2">
+      <div class="panel-header">
+        <h2>탭 2. 상황에 어울리는 반어 표현</h2>
+        <p>탭 1에서 작성한 일기의 상황에서 활용할 수 있는 <strong>반어 표현 한 문장(또는 구절)</strong>을 창작해 보세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">📖 내가 쓴 [하루의 일기] 확인하기</span>
+        <div class="ref-content" id="ref-diary-2">(아직 탭 1에 작성된 일기가 없습니다.)</div>
+      </div>
+
+      <div class="guide-box">
+        <strong>📌 반어(Irony)란?</strong> 실제 표현하고자 하는 의도와 <strong>정반대로 말하여</strong> 의미를 강조하는 표현법입니다.<br/>
+        (예: 시험을 망친 날 → <em>"와, 오늘 성적표 보니까 눈물이 날 정도로 감동적이네."</em>)
+      </div>
+
+      <label class="field-label" for="input-2">나만의 반어 표현</label>
+      <input type="text" class="expr-input" id="input-2" placeholder="상황과 반대로 말하여 속마음을 강조하는 표현을 적어보세요." />
+      <div class="char-counter">
+        <span class="min-rule" id="rule-2">최소 8자 이상 작성해야 완료됩니다.</span>
+        <span id="count-2">0자</span>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(1)">← 이전: 탭 1</button>
+        <button class="btn btn-next" onclick="goTab(3)">다음: 탭 3 (역설 표현) →</button>
+      </div>
+    </section>
+
+    <!-- TAB 3: 역설 표현 -->
+    <section class="panel" id="panel-3">
+      <div class="panel-header">
+        <h2>탭 3. 상황에 어울리는 역설 표현</h2>
+        <p>탭 1에서 작성한 일기의 상황에서 활용할 수 있는 <strong>역설 표현 한 문장(또는 구절)</strong>을 창작해 보세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">📖 내가 쓴 [하루의 일기] 확인하기</span>
+        <div class="ref-content" id="ref-diary-3">(아직 탭 1에 작성된 일기가 없습니다.)</div>
+      </div>
+
+      <div class="guide-box">
+        <strong>📌 역설(Paradox)이란?</strong> 겉으로 보기에는 <strong>앞뒤가 맞지 않고 모순되는 말</strong>이지만, 그 속에 깊은 진실이나 의미를 담고 있는 표현법입니다.<br/>
+        (예: 이별 후 그리움이 더 커질 때 → <em>"나는 너를 보냈지만, 너는 내 곁에 더욱 선명히 남아 있다."</em> / <em>"소리 없는 아우성"</em>)
+      </div>
+
+      <label class="field-label" for="input-3">나만의 역설 표현</label>
+      <input type="text" class="expr-input" id="input-3" placeholder="겉으로는 모순되지만 깊은 진실이 담긴 표현을 적어보세요." />
+      <div class="char-counter">
+        <span class="min-rule" id="rule-3">최소 8자 이상 작성해야 완료됩니다.</span>
+        <span id="count-3">0자</span>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(2)">← 이전: 탭 2</button>
+        <button class="btn btn-next" onclick="goTab(4)">다음: 탭 4 (반어 선택 이유) →</button>
+      </div>
+    </section>
+
+    <!-- TAB 4: 반어 선택 이유 (설득 글쓰기) -->
+    <section class="panel" id="panel-4">
+      <div class="panel-header">
+        <h2>탭 4. 반어 표현을 선택한 이유 (독자 설득하기)</h2>
+        <p>탭 2에 적은 표현이 <strong>왜 반어인지</strong> 다른 사람이 읽고 완전히 납득할 수 있도록 논리적으로 설명해 보세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">🔍 내가 작성한 [탭 2: 반어 표현]</span>
+        <div class="ref-content" id="ref-irony">(아직 탭 2에 반어 표현이 작성되지 않았습니다.)</div>
+      </div>
+
+      <div class="guide-box">
+        <strong>✅ 설득력 있는 설명 공식 (3단계):</strong><br/>
+        1) <strong>겉으로 드러난 말의 뜻</strong>은 무엇인가?<br/>
+        2) 일기 속 실제 상황과 나의 <strong>진짜 속마음(의도)</strong>은 무엇인가?<br/>
+        3) 둘이 <strong>정반대 관계</strong>를 이루며 어떤 표현 효과(강조, 씁쓸함, 해학 등)를 주는지 설명하기
+      </div>
+
+      <label class="field-label" for="input-4">반어 표현 근거 및 설득 글</label>
+      <textarea id="input-4" rows="6" placeholder="겉으로 표현된 말의 의미와 일기 속 실제 상황에서의 속마음이 어떻게 정반대인지 구체적으로 비교하여 설명해 주세요."></textarea>
+      <div class="char-counter">
+        <span class="min-rule" id="rule-4">최소 70자 이상 상세히 작성해야 완료됩니다.</span>
+        <span id="count-4">0자</span>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(3)">← 이전: 탭 3</button>
+        <button class="btn btn-next" onclick="goTab(5)">다음: 탭 5 (역설 선택 이유) →</button>
+      </div>
+    </section>
+
+    <!-- TAB 5: 역설 선택 이유 (설득 글쓰기) -->
+    <section class="panel" id="panel-5">
+      <div class="panel-header">
+        <h2>탭 5. 역설 표현을 선택한 이유 (독자 설득하기)</h2>
+        <p>탭 3에 적은 표현이 <strong>왜 역설인지</strong> 다른 사람이 읽고 완전히 납득할 수 있도록 논리적으로 설명해 보세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">🔍 내가 작성한 [탭 3: 역설 표현]</span>
+        <div class="ref-content" id="ref-paradox">(아직 탭 3에 역설 표현이 작성되지 않았습니다.)</div>
+      </div>
+
+      <div class="guide-box">
+        <strong>✅ 설득력 있는 설명 공식 (3단계):</strong><br/>
+        1) 문장 속 어떤 단어(또는 구절)들이 서로 부딪혀 <strong>겉으로 논리적 모순</strong>을 일으키는가?<br/>
+        2) 그럼에도 불구하고 일기 속 상황에서 이 말이 전달하려는 <strong>깊은 진실(속뜻)</strong>은 무엇인가?<br/>
+        3) 단순한 반어(반대로 말하기)와 달리 왜 <strong>모순 속 진리(역설)</strong>에 해당하는지 설득하기
+      </div>
+
+      <label class="field-label" for="input-5">역설 표현 근거 및 설득 글</label>
+      <textarea id="input-5" rows="6" placeholder="표현의 어느 부분이 겉으로 모순되는지 짚어주고, 그 모순 너머에 담긴 진짜 의미가 무엇인지 독자를 설득하듯 적어주세요."></textarea>
+      <div class="char-counter">
+        <span class="min-rule" id="rule-5">최소 70자 이상 상세히 작성해야 완료됩니다.</span>
+        <span id="count-5">0자</span>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(4)">← 이전: 탭 4</button>
+        <button class="btn btn-submit" onclick="attemptFinish()">✅ 5개 탭 최종 완료 및 검증하기</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 미완료 시 하단 압박 경고 바 -->
+  <div class="panic-banner" id="panicBanner">
+    ⚠️ 아직 모든 탭이 완성되지 않았습니다! 제한 시간 내에 탭 1~5의 조건을 모두 채워야 종료됩니다.
+  </div>
+
+  <!-- 미완료 경고 모달 (초조함 유발) -->
+  <div class="modal-overlay" id="alertModal">
+    <div class="modal-card alert-mode">
+      <div class="alert-icon">🚨</div>
+      <h3 id="alertModalTitle">아직 완료할 수 없습니다!</h3>
+      <p id="alertModalDesc" style="color:#475569; font-size:0.95rem;">
+        아래 항목이 기준 글자 수를 채우지 못했습니다.<br/>시간이 계속 흐르고 있으니 서둘러 완성하세요!
+      </p>
+      <ul class="incomplete-list" id="incompleteList"></ul>
+      <button class="btn btn-next" style="width:100%;" onclick="closeModal('alertModal')">지금 바로 마저 작성하기</button>
+    </div>
+  </div>
+
+  <!-- 최종 완료 보고서 모달 -->
+  <div class="modal-overlay" id="successModal">
+    <div class="modal-card">
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:2.5rem;">🎉</div>
+        <h3>반어와 역설 마스터 미션 완료!</h3>
+        <p id="finishMeta" style="color:#64748b; font-size:0.92rem; font-weight:700;"></p>
+      </div>
+
+      <div class="report-section">
+        <h4>1. 하루의 일기</h4>
+        <p id="rep-1"></p>
+      </div>
+      <div class="report-section">
+        <h4>2. 반어 표현</h4>
+        <p id="rep-2" style="font-weight:700; color:#1d4ed8;"></p>
+      </div>
+      <div class="report-section">
+        <h4>3. 역설 표현</h4>
+        <p id="rep-3" style="font-weight:700; color:#4f46e5;"></p>
+      </div>
+      <div class="report-section">
+        <h4>4. 반어 표현 선택 이유 (설득 논증)</h4>
+        <p id="rep-4"></p>
+      </div>
+      <div class="report-section">
+        <h4>5. 역설 표현 선택 이유 (설득 논증)</h4>
+        <p id="rep-5"></p>
+      </div>
+
+      <div class="report-actions">
+        <button class="btn btn-prev" onclick="closeModal('successModal')">수정하기</button>
+        <button class="btn btn-next" onclick="copyResult()">📋 전체 내용 복사하기</button>
+        <button class="btn btn-submit" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 각 탭의 최소 글자 수 기준 및 이름
+    const TAB_CONFIG = {
+      1: { name: '탭 1: 하루의 일기', min: 60 },
+      2: { name: '탭 2: 반어 표현', min: 8 },
+      3: { name: '탭 3: 역설 표현', min: 8 },
+      4: { name: '탭 4: 반어 선택 이유', min: 70 },
+      5: { name: '탭 5: 역설 선택 이유', min: 70 }
+    };
+
+    let isMissionCompleted = false;
+    let remainingSeconds = 900; // 기본 15분
+    let timerInterval = null;
+    let hasShownTimeOverAlert = false;
+
+    // 탭 전환 함수
+    function goTab(tabNum) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.tab) === tabNum);
+      });
+      document.querySelectorAll('.panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `panel-${tabNum}`);
+      });
+      updateReferences();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => goTab(Number(btn.dataset.tab)));
+    });
+
+    // 이전 탭 내용 실시간 동기화
+    function updateReferences() {
+      const diary = document.getElementById('input-1').value.trim();
+      const irony = document.getElementById('input-2').value.trim();
+      const paradox = document.getElementById('input-3').value.trim();
+
+      document.getElementById('ref-diary-2').textContent = diary || '(아직 탭 1에 작성된 일기가 없습니다. 먼저 일기를 작성하세요!)';
+      document.getElementById('ref-diary-3').textContent = diary || '(아직 탭 1에 작성된 일기가 없습니다. 먼저 일기를 작성하세요!)';
+      document.getElementById('ref-irony').textContent = irony || '(아직 탭 2에 반어 표현이 작성되지 않았습니다.)';
+      document.getElementById('ref-paradox').textContent = paradox || '(아직 탭 3에 역설 표현이 작성되지 않았습니다.)';
+    }
+
+    // 입력 상태 검증 및 UI 업데이트
+    function validateAll() {
+      let completedCount = 0;
+
+      for (let i = 1; i <= 5; i++) {
+        const val = document.getElementById(`input-${i}`).value.trim();
+        const len = val.length;
+        const min = TAB_CONFIG[i].min;
+        const badge = document.getElementById(`badge-${i}`);
+        const rule = document.getElementById(`rule-${i}`);
+        const countEl = document.getElementById(`count-${i}`);
+
+        countEl.textContent = `${len}자`;
+
+        if (len >= min) {
+          completedCount++;
+          badge.textContent = '완료';
+          badge.className = 'status-badge done';
+          rule.textContent = `✓ 기준 충족 (${min}자 이상 완료)`;
+          rule.classList.add('ok');
+        } else if (len > 0) {
+          badge.textContent = '작성중';
+          badge.className = 'status-badge working';
+          rule.textContent = `최소 ${min}자 이상 필요 (현재 ${min - len}자 부족)`;
+          rule.classList.remove('ok');
+        } else {
+          badge.textContent = '미작성';
+          badge.className = 'status-badge';
+          rule.textContent = `최소 ${min}자 이상 작성해야 완료됩니다.`;
+          rule.classList.remove('ok');
+        }
+      }
+
+      document.getElementById('progressCount').textContent = `${completedCount} / 5 탭 완료`;
+      document.getElementById('progressBarFill').style.width = `${(completedCount / 5) * 100}%`;
+      updateReferences();
+    }
+
+    for (let i = 1; i <= 5; i++) {
+      document.getElementById(`input-${i}`).addEventListener('input', validateAll);
+    }
+
+    // 초조함 유발 타이머 로직
+    function formatTime(sec) {
+      const absSec = Math.abs(sec);
+      const m = String(Math.floor(absSec / 60)).padStart(2, '0');
+      const s = String(absSec % 60).padStart(2, '0');
+      return (sec < 0 ? '-' : '') + `${m}:${s}`;
+    }
+
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (isMissionCompleted) return;
+
+        remainingSeconds--;
+        const display = document.getElementById('timerDisplay');
+        const box = document.getElementById('timerBox');
+        const statusText = document.getElementById('timerStatusText');
+        const panicBanner = document.getElementById('panicBanner');
+
+        display.textContent = formatTime(remainingSeconds);
+
+        if (remainingSeconds <= 180 && remainingSeconds > 0) {
+          box.classList.add('urgent');
+          statusText.textContent = '🔥 시간 임박! 미완성 탭을 서두르세요!';
+          panicBanner.textContent = `🚨 마감 ${formatTime(remainingSeconds)} 전! 아직 5개 탭이 모두 완료되지 않았습니다!`;
+        } else if (remainingSeconds <= 0) {
+          box.classList.add('urgent');
+          statusText.textContent = '⏰ 제한 시간 초과! 즉시 완료하세요!';
+          panicBanner.textContent = '🚨 제한 시간이 초과되었습니다! 모든 탭을 채워 제출해야 타이머가 멈춥니다!';
+
+          if (!hasShownTimeOverAlert) {
+            hasShownTimeOverAlert = true;
+            showIncompleteAlert('⏰ 제한 시간이 종료되었습니다!', '아직 완성되지 않은 탭이 남아 있습니다. 모든 탭을 기준 이상 작성해야 활동이 종료됩니다!');
+          }
+        }
+      }, 1000);
+    }
+
+    document.getElementById('timeSelect').addEventListener('change', (e) => {
+      if (isMissionCompleted) return;
+      remainingSeconds = Number(e.target.value);
+      hasShownTimeOverAlert = false;
+      document.getElementById('timerBox').classList.remove('urgent');
+      document.getElementById('timerStatusText').textContent = '⏳ 미완성! 제한 시간 카운트다운';
+      document.getElementById('timerDisplay').textContent = formatTime(remainingSeconds);
+    });
+
+    // 미완료 항목 모달 띄우기
+    function showIncompleteAlert(title, desc) {
+      const list = document.getElementById('incompleteList');
+      list.innerHTML = '';
+
+      for (let i = 1; i <= 5; i++) {
+        const len = document.getElementById(`input-${i}`).value.trim().length;
+        const min = TAB_CONFIG[i].min;
+        if (len < min) {
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${TAB_CONFIG[i].name}</strong>: 현재 ${len}자 (최소 ${min}자 필요)`;
+          list.appendChild(li);
+        }
+      }
+
+      document.getElementById('alertModalTitle').textContent = title;
+      document.getElementById('alertModalDesc').innerHTML = desc;
+      document.getElementById('alertModal').classList.add('show');
+    }
+
+    // 최종 제출 시도
+    function attemptFinish() {
+      const incompleteTabs = [];
+      for (let i = 1; i <= 5; i++) {
+        const len = document.getElementById(`input-${i}`).value.trim().length;
+        if (len < TAB_CONFIG[i].min) {
+          incompleteTabs.push(i);
+        }
+      }
+
+      if (incompleteTabs.length > 0) {
+        showIncompleteAlert(
+          '🚨 미완성 탭이 남아있습니다!',
+          `5개 탭을 모두 작성해야 완료할 수 있습니다.<br/>남은 시간 <strong>${formatTime(remainingSeconds)}</strong> 안에 아래 항목을 채우세요!`
+        );
+        goTab(incompleteTabs[0]);
+        return;
+      }
+
+      // 모두 완료된 경우
+      isMissionCompleted = true;
+      const box = document.getElementById('timerBox');
+      box.classList.remove('urgent');
+      box.classList.add('completed');
+      document.getElementById('timerStatusText').textContent = '✅ 미션 완료! 타이머 정지';
+      document.getElementById('panicBanner').classList.add('hidden');
+
+      const sId = document.getElementById('studentId').value.trim() || '학번 미입력';
+      const sName = document.getElementById('studentName').value.trim() || '이름 미입력';
+      document.getElementById('finishMeta').textContent = `작성자: ${sId} ${sName} | 완료 시각: ${new Date().toLocaleTimeString('ko-KR')}`;
+
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`rep-${i}`).textContent = document.getElementById(`input-${i}`).value.trim();
+      }
+
+      document.getElementById('successModal').classList.add('show');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    function copyResult() {
+      const sId = document.getElementById('studentId').value.trim() || '학번 미입력';
+      const sName = document.getElementById('studentName').value.trim() || '이름 미입력';
+      const text = [
+        `[반어와 역설 마스터: 하루의 일기]`,
+        `작성자: ${sId} ${sName}`,
+        ``,
+        `1. 하루의 일기`,
+        document.getElementById('input-1').value.trim(),
+        ``,
+        `2. 반어 표현`,
+        document.getElementById('input-2').value.trim(),
+        ``,
+        `3. 역설 표현`,
+        document.getElementById('input-3').value.trim(),
+        ``,
+        `4. 반어 표현을 선택한 이유`,
+        document.getElementById('input-4').value.trim(),
+        ``,
+        `5. 역설 표현을 선택한 이유`,
+        document.getElementById('input-5').value.trim()
+      ].join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('전체 작성 내용이 클립보드에 복사되었습니다! 과제 게시판에 붙여넣기 하세요.');
+      });
+    }
+
+    // 페이지 이탈 방지 (미완료 상태일 때 브라우저 경고창)
+    window.addEventListener('beforeunload', (e) => {
+      if (!isMissionCompleted) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    // 초기화
+    validateAll();
+    startTimer();
+  </script>
+</body>
+</html>
