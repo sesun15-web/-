@@ -1,40 +1,1366 @@
-function doPost(e) {
-  try {
-    // 현재 연결된 스프레드시트의 첫 번째 시트 가져오기
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheets()[0];
-
-    // 웹 앱에서 보낸 데이터 파싱
-    var data = JSON.parse(e.postData.contents);
-
-    // 1행 헤더가 기본 4열(A~D)만 있다면 E~J열 헤더 자동 추가
-    if (sheet.getLastColumn() <= 4) {
-      sheet.getRange(1, 5, 1, 6).setValues([[
-        "제출 시각", "탭1_하루의일기", "탭2_반어표현", "탭3_역설표현", "탭4_반어이유", "탭5_역설이유"
-      ]]);
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>중2 국어: 반어와 역설 마스터 창작소</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --secondary: #7c3aed;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --success: #16a34a;
+      --warning: #ea580c;
+      --danger: #dc2626;
     }
 
-    // 스프레드시트 맨 아래 행에 학생 데이터 기록 (선생님만 열람 가능)
-    sheet.appendRow([
-      data.name,          // A열: 이름
-      data.studentId,     // B열: 학번
-      data.score,         // C열: 퀴즈 점수 (100점 만점 기준 검증 통과 점수)
-      data.passed,        // D열: 통과 여부 ("통과")
-      data.submittedAt,   // E열: 제출 시각
-      data.tab1,          // F열: 하루의 일기
-      data.tab2,          // G열: 반어 표현
-      data.tab3,          // H열: 역설 표현
-      data.tab4,          // I열: 반어 선택 이유
-      data.tab5           // J열: 역설 선택 이유
-    ]);
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+    }
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ result: "success" }))
-      .setMimeType(ContentService.MimeType.JSON);
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding-bottom: 64px;
+    }
 
-  } catch (err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ result: "error", message: err.toString() }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+    header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      padding: 18px 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-inner {
+      max-width: 980px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .title-area h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+    }
+
+    .title-area p {
+      font-size: 0.88rem;
+      color: #cbd5e1;
+      margin-top: 2px;
+    }
+
+    .timer-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 2px solid #f59e0b;
+      border-radius: 12px;
+      padding: 9px 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .timer-box.warning {
+      border-color: #ef4444;
+      background: rgba(220, 38, 38, 0.22);
+    }
+
+    .timer-box.urgent {
+      border-color: #ef4444;
+      background: rgba(220, 38, 38, 0.35);
+      animation: pulseBorder 1s infinite;
+    }
+
+    .timer-box.completed {
+      border-color: #22c55e;
+      background: rgba(22, 163, 74, 0.25);
+      animation: none;
+    }
+
+    @keyframes pulseBorder {
+      0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      50% { transform: scale(1.03); box-shadow: 0 0 15px 4px rgba(239, 68, 68, 0.5); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+    }
+
+    .timer-label {
+      font-size: 0.78rem;
+      color: #fde68a;
+      font-weight: 700;
+      display: block;
+    }
+
+    .timer-box.warning .timer-label,
+    .timer-box.urgent .timer-label {
+      color: #fca5a5;
+    }
+
+    .timer-box.completed .timer-label {
+      color: #86efac;
+    }
+
+    .timer-display {
+      font-size: 1.65rem;
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      color: #ffffff;
+    }
+
+    .container {
+      max-width: 980px;
+      margin: 22px auto;
+      padding: 0 16px;
+    }
+
+    /* 개인정보 보호 학생 입력 바 */
+    .student-bar {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 16px 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border: 1px solid #e2e8f0;
+    }
+
+    .student-inputs-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .student-inputs {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .student-inputs input {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.92rem;
+      width: 145px;
+    }
+
+    .privacy-note {
+      font-size: 0.78rem;
+      color: #0369a1;
+      font-weight: 600;
+    }
+
+    .progress-wrapper {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--muted);
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), var(--success));
+      transition: width 0.3s ease;
+    }
+
+    /* 개선된 5개 탭 네비게이션 */
+    .tabs-nav {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 768px) {
+      .tabs-nav {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .tab-btn {
+      background: var(--card);
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 12px 10px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      border-color: #93c5fd;
+      transform: translateY(-2px);
+    }
+
+    .tab-btn.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+      box-shadow: 0 4px 10px rgba(37, 99, 235, 0.12);
+    }
+
+    .tab-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+
+    .tab-num {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .status-badge {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 700;
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    .status-badge.working {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .status-badge.done {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .tab-title {
+      font-size: 0.94rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* 패널 */
+    .panel {
+      display: none;
+      background: var(--card);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    .panel.active {
+      display: block;
+      animation: fadeIn 0.22s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .panel-header {
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .panel-header h2 {
+      font-size: 1.28rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+
+    .panel-header p {
+      font-size: 0.94rem;
+      color: var(--muted);
+    }
+
+    .guide-box {
+      background: #f8fafc;
+      border-left: 4px solid var(--primary);
+      padding: 14px 16px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+
+    .guide-box.paradox-guide {
+      border-left-color: var(--secondary);
+    }
+
+    .reference-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 10px;
+      padding: 13px 16px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+
+    .reference-box .ref-title {
+      font-weight: 800;
+      color: #92400e;
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .reference-box .ref-content {
+      color: #451a03;
+      white-space: pre-wrap;
+    }
+
+    .context-tag {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    label.field-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-size: 0.96rem;
+    }
+
+    .free-badge {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: #eff6ff;
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    textarea, input[type="text"].expr-input {
+      width: 100%;
+      padding: 14px;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      font-size: 1rem;
+      line-height: 1.6;
+      transition: border-color 0.2s;
+      resize: vertical;
+    }
+
+    textarea:focus, input[type="text"].expr-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .check-area {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-check {
+      align-self: flex-start;
+      background: #0f172a;
+      color: white;
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-check:hover {
+      background: #334155;
+    }
+
+    .feedback-box {
+      display: none;
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    .feedback-box.show {
+      display: block;
+    }
+
+    .feedback-box.pass {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #14532d;
+    }
+
+    .feedback-box.fail {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #991b1b;
+    }
+
+    .feedback-box ul {
+      margin-top: 6px;
+      margin-left: 18px;
+    }
+
+    .panel-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid #e2e8f0;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 11px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .btn-prev {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .btn-next {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-submit {
+      background: var(--success);
+      color: white;
+      font-size: 1.02rem;
+      padding: 13px 26px;
+      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.25);
+    }
+
+    .btn-submit:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .panic-banner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #b91c1c;
+      color: white;
+      text-align: center;
+      padding: 10px 16px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      z-index: 99;
+    }
+
+    .panic-banner.hidden {
+      display: none;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.72);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      padding: 16px;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-card {
+      background: white;
+      border-radius: 16px;
+      max-width: 700px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 28px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-card.alert-mode {
+      max-width: 480px;
+      border-top: 6px solid var(--danger);
+      text-align: center;
+    }
+
+    .incomplete-list {
+      text-align: left;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0 20px;
+      color: #991b1b;
+      font-size: 0.9rem;
+    }
+
+    .incomplete-list li {
+      margin-left: 16px;
+      margin-bottom: 6px;
+    }
+
+    .report-section {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+
+    .report-section h4 {
+      font-size: 0.9rem;
+      color: var(--primary-dark);
+      margin-bottom: 6px;
+    }
+
+    .report-section p {
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+
+    .report-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="title-area">
+        <h1>✍️ 중2 국어: 반어와 역설 마스터 창작소</h1>
+        <p>5개 탭을 논리적으로 완성하고 선생님 시트로 안전하게 제출하세요.</p>
+      </div>
+
+      <div class="timer-box" id="timerBox">
+        <div>
+          <span class="timer-label" id="timerStatusText">⏳ 수업 시간(45분) 카운트다운</span>
+          <div class="timer-display" id="timerDisplay">45:00</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 개인정보 보호 입력창 -->
+    <div class="student-bar">
+      <div class="student-inputs-wrap">
+        <div class="student-inputs">
+          <input type="text" id="studentId" placeholder="학번 (필수, 예: 20412)" autocomplete="off" />
+          <input type="text" id="studentName" placeholder="이름 (필수, 예: 이국어)" autocomplete="off" />
+        </div>
+        <span class="privacy-note">🔒 개인정보 보호: 입력한 학번과 이름은 화면에 저장·노출되지 않으며 선생님 시트로만 암호화 전송됩니다.</span>
+      </div>
+
+      <div class="progress-wrapper">
+        <div class="progress-text">
+          <span>정밀 검증 통과 현황</span>
+          <span id="progressCount">0 / 5 탭 통과</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progressBarFill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 개선된 5개 탭 네비게이션 -->
+    <nav class="tabs-nav">
+      <button class="tab-btn active" data-tab="1">
+        <div class="tab-top">
+          <span class="tab-num">STEP 1</span>
+          <span class="status-badge" id="badge-1">미작성</span>
+        </div>
+        <span class="tab-title">하루의 일기</span>
+      </button>
+
+      <button class="tab-btn" data-tab="2">
+        <div class="tab-top">
+          <span class="tab-num">STEP 2</span>
+          <span class="status-badge" id="badge-2">미작성</span>
+        </div>
+        <span class="tab-title">반어 표현 창작</span>
+      </button>
+
+      <button class="tab-btn" data-tab="3">
+        <div class="tab-top">
+          <span class="tab-num">STEP 3</span>
+          <span class="status-badge" id="badge-3">미작성</span>
+        </div>
+        <span class="tab-title">역설 표현 창작</span>
+      </button>
+
+      <button class="tab-btn" data-tab="4">
+        <div class="tab-top">
+          <span class="tab-num">STEP 4</span>
+          <span class="status-badge" id="badge-4">미작성</span>
+        </div>
+        <span class="tab-title">반어 선택 이유</span>
+      </button>
+
+      <button class="tab-btn" data-tab="5">
+        <div class="tab-top">
+          <span class="tab-num">STEP 5</span>
+          <span class="status-badge" id="badge-5">미작성</span>
+        </div>
+        <span class="tab-title">역설 선택 이유</span>
+      </button>
+    </nav>
+
+    <!-- STEP 1: 하루의 일기 -->
+    <section class="panel active" id="panel-1">
+      <div class="panel-header">
+        <h2>1단계. 하루의 일기</h2>
+        <p>오늘 겪었거나 인상 깊었던 하나의 구체적인 상황(에피소드)을 선택해 일기처럼 작성하세요.</p>
+      </div>
+
+      <div class="guide-box">
+        <strong>💡 작성 안내:</strong> 사건의 배경과 그때 나의 실제 감정(속상함, 기쁨, 당황, 억울함 등)이 드러나야 다음 단계에서 반어와 역설의 맥락을 정확히 판별할 수 있습니다.
+      </div>
+
+      <label class="field-label" for="input-1">
+        <span>오늘의 에피소드 일기</span>
+        <span class="free-badge">글자 수 자유</span>
+      </label>
+      <textarea id="input-1" rows="7" placeholder="예시) 오늘 체육 시간에 피구를 하다가 시작하자마자 공에 맞아 가장 먼저 아웃되었다. 친구들이 웃음을 터뜨려서 얼굴이 빨개졌고 너무 부끄럽고 속상했다."></textarea>
+
+      <div class="check-area">
+        <button class="btn-check" onclick="runTabCheck(1)">🔎 1단계 상황·맥락 점검하기</button>
+        <div class="feedback-box" id="fb-1"></div>
+      </div>
+
+      <div class="panel-footer">
+        <span></span>
+        <button class="btn btn-next" onclick="goTab(2)">다음: 2단계 (반어 표현) →</button>
+      </div>
+    </section>
+
+    <!-- STEP 2: 반어 표현 -->
+    <section class="panel" id="panel-2">
+      <div class="panel-header">
+        <h2>2단계. 상황에 어울리는 반어 표현</h2>
+        <p>1단계 일기의 상황에서 활용할 수 있는 <strong>반어 표현</strong>을 작성하세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">📖 내가 쓴 [하루의 일기] 및 상황 맥락</span>
+        <div class="ref-content" id="ref-diary-2">(아직 1단계 일기가 작성되지 않았습니다.)</div>
+        <span class="context-tag" id="ctx-tag-2">상황 맥락 대기 중</span>
+      </div>
+
+      <div class="guide-box">
+        <strong>📌 반어(Irony) 핵심:</strong> 실제 속마음과 <strong>정반대되는 말</strong>을 하여 의미를 강조하는 표현입니다. (모순되는 두 단어를 한 문장에 넣는 역설과 혼동하지 않도록 주의하세요.)
+      </div>
+
+      <label class="field-label" for="input-2">
+        <span>나만의 반어 표현</span>
+        <span class="free-badge">글자 수 자유</span>
+      </label>
+      <input type="text" class="expr-input" id="input-2" placeholder="일기 속 실제 속마음과 정반대로 말하는 표현을 적어보세요." />
+
+      <div class="check-area">
+        <button class="btn-check" onclick="runTabCheck(2)">🔎 2단계 반어 표현 점검하기</button>
+        <div class="feedback-box" id="fb-2"></div>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(1)">← 이전: 1단계</button>
+        <button class="btn btn-next" onclick="goTab(3)">다음: 3단계 (역설 표현) →</button>
+      </div>
+    </section>
+
+    <!-- STEP 3: 역설 표현 -->
+    <section class="panel" id="panel-3">
+      <div class="panel-header">
+        <h2>3단계. 상황에 어울리는 역설 표현</h2>
+        <p>1단계 일기의 상황에서 깊은 의미나 깨달음을 담아 활용할 수 있는 <strong>역설 표현</strong>을 작성하세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">📖 내가 쓴 [하루의 일기]</span>
+        <div class="ref-content" id="ref-diary-3">(아직 1단계 일기가 작성되지 않았습니다.)</div>
+      </div>
+
+      <div class="guide-box paradox-guide">
+        <strong>📌 역설(Paradox) 핵심:</strong> 한 문장 안에 <strong>겉으로는 서로 모순되는 말(예: 지는 것이 이기는 것, 소리 없는 아우성, 잃음으로써 얻다)</strong>이 공존하면서, 그 속에 깊은 진실을 담고 있어야 합니다.
+      </div>
+
+      <label class="field-label" for="input-3">
+        <span>나만의 역설 표현</span>
+        <span class="free-badge">글자 수 자유</span>
+      </label>
+      <input type="text" class="expr-input" id="input-3" placeholder="겉으로는 모순되지만 깊은 진실이 담긴 표현을 적어보세요." />
+
+      <div class="check-area">
+        <button class="btn-check" onclick="runTabCheck(3)">🔎 3단계 역설 표현 점검하기</button>
+        <div class="feedback-box" id="fb-3"></div>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(2)">← 이전: 2단계</button>
+        <button class="btn btn-next" onclick="goTab(4)">다음: 4단계 (반어 선택 이유) →</button>
+      </div>
+    </section>
+
+    <!-- STEP 4: 반어 선택 이유 -->
+    <section class="panel" id="panel-4">
+      <div class="panel-header">
+        <h2>4단계. 반어 표현을 선택한 이유 (설득 글쓰기)</h2>
+        <p>2단계에 적은 표현이 <strong>왜 반어인지</strong> 글을 읽는 사람이 납득할 수 있도록 상세히 설명하세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">🔍 내가 작성한 [2단계: 반어 표현]</span>
+        <div class="ref-content" id="ref-irony">(아직 2단계 반어 표현이 작성되지 않았습니다.)</div>
+      </div>
+
+      <div class="guide-box">
+        <strong>✅ 설득 논증 체크리스트:</strong> ① 겉으로 드러난 말의 의미, ② 일기 속 실제 상황과 나의 진짜 속마음, ③ 둘이 <strong>정반대 관계</strong>를 이루며 주는 표현 효과를 모두 포함해 작성하세요.
+      </div>
+
+      <label class="field-label" for="input-4">
+        <span>반어 표현 선택 이유 및 설득 글</span>
+        <span class="free-badge">글자 수 자유</span>
+      </label>
+      <textarea id="input-4" rows="6" placeholder="겉으로 표현된 말의 뜻과 일기 속 실제 상황에서의 속마음이 어떻게 정반대인지 구체적으로 비교하여 설득해 주세요."></textarea>
+
+      <div class="check-area">
+        <button class="btn-check" onclick="runTabCheck(4)">🔎 4단계 반어 논증 점검하기</button>
+        <div class="feedback-box" id="fb-4"></div>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(3)">← 이전: 3단계</button>
+        <button class="btn btn-next" onclick="goTab(5)">다음: 5단계 (역설 선택 이유) →</button>
+      </div>
+    </section>
+
+    <!-- STEP 5: 역설 선택 이유 -->
+    <section class="panel" id="panel-5">
+      <div class="panel-header">
+        <h2>5단계. 역설 표현을 선택한 이유 (설득 글쓰기)</h2>
+        <p>3단계에 적은 표현이 <strong>왜 역설인지</strong> 글을 읽는 사람이 납득할 수 있도록 상세히 설명하세요.</p>
+      </div>
+
+      <div class="reference-box">
+        <span class="ref-title">🔍 내가 작성한 [3단계: 역설 표현]</span>
+        <div class="ref-content" id="ref-paradox">(아직 3단계 역설 표현이 작성되지 않았습니다.)</div>
+      </div>
+
+      <div class="guide-box paradox-guide">
+        <strong>✅ 설득 논증 체크리스트:</strong> ① 문장 속 어떤 표현들이 겉으로 <strong>논리적 모순(앞뒤가 맞지 않음)</strong>을 일으키는지, ② 그럼에도 일기 상황에서 전하려는 <strong>깊은 진실(속뜻)</strong>이 무엇인지 분명히 밝히세요.
+      </div>
+
+      <label class="field-label" for="input-5">
+        <span>역설 표현 선택 이유 및 설득 글</span>
+        <span class="free-badge">글자 수 자유</span>
+      </label>
+      <textarea id="input-5" rows="6" placeholder="표현의 어느 부분이 겉으로 모순되는지 짚어주고, 그 모순 너머에 담긴 진짜 의미가 무엇인지 독자를 설득하듯 적어주세요."></textarea>
+
+      <div class="check-area">
+        <button class="btn-check" onclick="runTabCheck(5)">🔎 5단계 역설 논증 점검하기</button>
+        <div class="feedback-box" id="fb-5"></div>
+      </div>
+
+      <div class="panel-footer">
+        <button class="btn btn-prev" onclick="goTab(4)">← 이전: 4단계</button>
+        <button class="btn btn-submit" id="finalSubmitBtn" onclick="attemptFinish()">✅ 최종 검증 및 선생님 시트로 제출하기</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- 하단 압박 경고 배너 -->
+  <div class="panic-banner" id="panicBanner">
+    ⚠️ 미완성 상태입니다! 45분 제한 시간 내에 1~5단계 검증을 모두 통과하고 제출해야 종료됩니다.
+  </div>
+
+  <!-- 미완료 / 검증 실패 모달 -->
+  <div class="modal-overlay" id="alertModal">
+    <div class="modal-card alert-mode">
+      <div style="font-size:2.6rem; margin-bottom:8px;">🚨</div>
+      <h3 id="alertModalTitle">아직 완료할 수 없습니다!</h3>
+      <p id="alertModalDesc" style="color:#475569; font-size:0.93rem;"></p>
+      <ul class="incomplete-list" id="incompleteList"></ul>
+      <button class="btn btn-next" style="width:100%;" onclick="closeModal('alertModal')">돌아가서 보완하기</button>
+    </div>
+  </div>
+
+  <!-- 최종 완료 인증 모달 (개인정보 비노출 마스킹 적용) -->
+  <div class="modal-overlay" id="successModal">
+    <div class="modal-card">
+      <div style="text-align:center; margin-bottom:18px;">
+        <div style="font-size:2.5rem;">🏆</div>
+        <h3>반어와 역설 마스터 제출 완료!</h3>
+        <p id="finishMeta" style="color:#15803d; font-size:0.92rem; font-weight:700;"></p>
+        <p style="color:#64748b; font-size:0.8rem; margin-top:4px;">🔒 개인정보 보호를 위해 화면에는 학번과 이름이 마스킹 처리됩니다.</p>
+      </div>
+
+      <div class="report-section">
+        <h4>1. 하루의 일기</h4>
+        <p id="rep-1"></p>
+      </div>
+      <div class="report-section">
+        <h4>2. 반어 표현</h4>
+        <p id="rep-2" style="font-weight:700; color:#1d4ed8;"></p>
+      </div>
+      <div class="report-section">
+        <h4>3. 역설 표현</h4>
+        <p id="rep-3" style="font-weight:700; color:#6d28d9;"></p>
+      </div>
+      <div class="report-section">
+        <h4>4. 반어 표현을 선택한 이유</h4>
+        <p id="rep-4"></p>
+      </div>
+      <div class="report-section">
+        <h4>5. 역설 표현을 선택한 이유</h4>
+        <p id="rep-5"></p>
+      </div>
+
+      <div class="report-actions">
+        <button class="btn btn-next" onclick="copyResult()">📋 창작 내용만 복사하기 (개인정보 제외)</button>
+        <button class="btn btn-submit" onclick="closeModal('successModal')">확인 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // [선생님 설정 영역] 3단계에서 복사한 Google Apps Script 웹 앱 URL을 넣으세요!
+    // =========================================================================
+    const GOOGLE_SCRIPT_URL = "여기에_복사한_웹앱_URL을_붙여넣으세요";
+
+    // =========================================================================
+    // 중2 국어 상황·맥락 기반 반어 및 역설 정밀 검증 엔진
+    // =========================================================================
+    const NEGATIVE_WORDS = [
+      '속상', '슬프', '슬펐', '화나', '화가', '짜증', '망했', '망쳤', '실패', '지각', '혼났', '혼나',
+      '우울', '힘들', '힘듦', '아프', '아팠', '억울', '부끄', '창피', '당황', '최악', '떨어졌', '틀렸',
+      '실수', '후회', '걱정', '불안', '외롭', '쓸쓸', '허탈', '좌절', '서운', '미안', '싸웠', '다퉜',
+      '못했', '늦잠', '비가 와', '비 맞', '잃어버', '놓쳤', '고장', '깨졌', '다쳤', '야단', '꾸중', '눈물', '아웃'
+    ];
+
+    const POSITIVE_WORDS = [
+      '기쁘', '기뻤', '행복', '즐거', '신나', '신났', '좋았', '좋은', '최고', '성공', '합격', '칭찬',
+      '뿌듯', '자랑', '설레', '감사', '고마', '웃음', '웃었', '상쾌', '완벽', '대박', '감동', '훈훈',
+      '편안', '다행', '멋지', '훌륭', '빛나', '승리', '이겼', '1등', '만점', '잘했'
+    ];
+
+    const PARADOX_PAIRS = [
+      ['있', '없'], ['소리', '아우성'], ['침묵', '외침'], ['침묵', '소리'], ['고요', '아우성'],
+      ['슬프', '행복'], ['슬픔', '기쁨'], ['울', '웃'], ['눈물', '웃음'], ['눈물', '행복'],
+      ['지', '이기'], ['패배', '승리'], ['실패', '성공'], ['잃', '얻'], ['버리', '얻'], ['비우', '채우'],
+      ['끝', '시작'], ['죽', '살'], ['어둠', '빛'], ['어두', '밝'], ['차가', '뜨거'], ['얼음', '불'],
+      ['멀', '가깝'], ['떠나', '남'], ['보내', '남'], ['잊', '기억'], ['약하', '강하'], ['작', '크'],
+      ['느리', '빠르'], ['멈추', '달리'], ['갇히', '자유'], ['거짓', '진실'], ['아프', '성숙'], ['상처', '치유'],
+      ['혼자', '함께'], ['외롭', '든든'], ['밉', '사랑'], ['미움', '사랑'], ['모르', '알'], ['부끄', '자랑']
+    ];
+
+    const PARADOX_PATTERNS = [
+      /지만.*(이다|있다|된다|한다)/,
+      /(인데|은데|는데).*(이다|있다|된다)/,
+      /속의\s*(침묵|고요|아우성|기쁨|슬픔|행복|희망|빛|어둠)/,
+      /없는\s*(아우성|소리|외침|울림|대화|눈물|기쁨|행복)/,
+      /(슬프|아프|힘들|괴롭|외롭|밉|싫)지만\s*(행복|기쁘|좋|사랑|따뜻|고맙|감사)/,
+      /(행복|기쁘|좋|웃)지만\s*(슬프|아프|울|눈물|외롭|허전)/,
+      /함으로써\s*(얻|채우|이루|살)/,
+      /(잃|버리|비우|지|실패).*덕분에.*(얻|채우|이기|성공)/
+    ];
+
+    function analyzeDiaryContext(diaryText) {
+      const text = diaryText.trim();
+      if (!text) return { valid: false, mood: 'none', reasons: ['일기 내용이 비어 있습니다.'] };
+
+      const sentences = text.split(/[.!?\n]+/).map(s => s.trim()).filter(Boolean);
+      let negScore = 0, posScore = 0;
+
+      NEGATIVE_WORDS.forEach(w => { if (text.includes(w)) negScore++; });
+      POSITIVE_WORDS.forEach(w => { if (text.includes(w)) posScore++; });
+
+      const reasons = [];
+      if (sentences.length < 2 && text.length < 25) {
+        reasons.push('상황과 감정이 드러나도록 사건의 배경과 나의 기분을 한두 문장 더 구체적으로 적어주세요.');
+      }
+
+      let mood = 'neutral';
+      if (negScore > posScore) mood = 'negative';
+      else if (posScore > negScore) mood = 'positive';
+      else if (negScore > 0 && posScore > 0) mood = 'mixed';
+
+      if (mood === 'neutral' && text.length < 30) {
+        reasons.push('일기에서 화자(나)의 감정이나 상황의 분위기(속상함, 기쁨, 당황 등)가 분명히 드러나지 않습니다.');
+      }
+
+      return { valid: reasons.length === 0, mood, reasons };
+    }
+
+    function checkParadoxStructure(text) {
+      let matchedPair = null;
+      for (const [a, b] of PARADOX_PAIRS) {
+        if (text.includes(a) && text.includes(b)) {
+          matchedPair = `${a} ↔ ${b}`;
+          break;
+        }
+      }
+      const matchedPattern = PARADOX_PATTERNS.some(rx => rx.test(text));
+      return { hasContradiction: Boolean(matchedPair || matchedPattern), matchedPair };
+    }
+
+    function validateIrony(diaryText, ironyText) {
+      const reasons = [];
+      const text = ironyText.trim();
+      if (!text) return { valid: false, reasons: ['반어 표현을 입력해 주세요.'] };
+
+      const ctx = analyzeDiaryContext(diaryText);
+      if (!ctx.valid) {
+        reasons.push('먼저 [1단계: 하루의 일기]에 상황과 감정이 드러나게 일기를 작성해야 맥락을 대조할 수 있습니다.');
+      }
+      if (diaryText.trim() && text === diaryText.trim()) {
+        reasons.push('일기 내용을 그대로 복사하지 말고, 그 상황에서 할 수 있는 반어 표현을 만들어 주세요.');
+      }
+      if (checkParadoxStructure(text).hasContradiction) {
+        reasons.push('작성한 문장 안에 서로 모순되는 말(예: 슬프지만 행복하다)이 함께 들어 있어 반어보다 [역설]에 가깝습니다. 반어는 속마음과 정반대로 말하는 표현입니다.');
+      }
+
+      let exprNeg = 0, exprPos = 0;
+      NEGATIVE_WORDS.forEach(w => { if (text.includes(w)) exprNeg++; });
+      POSITIVE_WORDS.forEach(w => { if (text.includes(w)) exprPos++; });
+
+      const ironyMarkers = ['참 ', '정말 ', '역시 ', '덕분에', '완벽', '대단', '훌륭', '최고', '기분 좋', '상쾌', '잘했', '잘도', '멋지', '다행', '고맙', '감사', '예쁘', '착하', '똑똑', '부럽', '아이고', '와,', '와 '];
+      const hasIronyMarker = ironyMarkers.some(m => text.includes(m));
+
+      if (ctx.mood === 'negative') {
+        if (exprNeg > 0 && exprPos === 0 && !hasIronyMarker) {
+          reasons.push('일기 속 상황은 부정적(속상함·실수·곤란함)인데, 작성한 표현도 그대로 부정적인 속마음을 말하고 있습니다. 속마음과 반대로 긍정·칭찬·감탄하듯 말해야 반어입니다.');
+        } else if (exprPos === 0 && !hasIronyMarker && text.length < 6) {
+          reasons.push('일기의 부정적 상황과 정반대되는 어조가 분명히 드러나도록 표현을 다듬어 주세요.');
+        }
+      } else if (ctx.mood === 'positive') {
+        if (exprPos > 0 && exprNeg === 0) {
+          reasons.push('일기 속 상황은 기쁘고 긍정적인데, 작성한 표현도 그대로 기쁨을 드러내고 있습니다. 오히려 불평하거나 아쉬운 척 반대로 말해야 반어가 됩니다.');
+        }
+      }
+
+      if (text.length < 4) {
+        reasons.push('반어적 어조와 맥락이 드러나는 온전한 구절이나 문장으로 작성해 주세요.');
+      }
+
+      return { valid: reasons.length === 0, reasons };
+    }
+
+    function validateParadox(diaryText, ironyText, paradoxText) {
+      const reasons = [];
+      const text = paradoxText.trim();
+      if (!text) return { valid: false, reasons: ['역설 표현을 입력해 주세요.'] };
+
+      if (!diaryText.trim()) {
+        reasons.push('먼저 [1단계: 하루의 일기]를 작성해야 일기 맥락에 맞는 역설인지 확인할 수 있습니다.');
+      }
+      if (ironyText.trim() && text === ironyText.trim()) {
+        reasons.push('2단계의 반어 표현과 똑같습니다. 역설은 반어와 다른 표현법이므로 새롭게 작성해 주세요.');
+      }
+
+      const structure = checkParadoxStructure(text);
+      if (!structure.hasContradiction) {
+        reasons.push('문장 안에서 겉으로 서로 부딪히는 [모순된 개념]이 명확히 드러나지 않습니다. (예: 지는 것이 이기는 것, 슬픔 속의 기쁨, 잃음으로써 얻다처럼 상반된 의미가 한 문장에 결합되어야 합니다.)');
+      }
+      if (text.length < 5) {
+        reasons.push('모순과 진실이 함께 담길 수 있도록 구절이나 문장 형태로 작성해 주세요.');
+      }
+
+      return { valid: reasons.length === 0, matchedPair: structure.matchedPair, reasons };
+    }
+
+    function validateIronyReason(ironyText, reasonText) {
+      const reasons = [];
+      const text = reasonText.trim();
+      if (!text) return { valid: false, reasons: ['반어 표현을 선택한 이유를 작성해 주세요.'] };
+      if (!ironyText.trim()) reasons.push('먼저 [2단계: 반어 표현]을 작성해야 그 표현을 뒷받침할 수 있습니다.');
+
+      const surfaceKeywords = ['겉으로', '표면', '말은', '표현은', '칭찬', '감탄', '긍정', '부정', '반대로', '거꾸로', '비꼬'];
+      const innerKeywords = ['속마음', '실제', '진짜', '본심', '의도', '상황', '일기', '기분', '마음은', '사실은'];
+      const oppositeKeywords = ['반대', '거꾸로', '다르게', '달리', '어긋', '강조', '드러내', '효과'];
+
+      if (!oppositeKeywords.some(k => text.includes(k))) {
+        reasons.push('반어의 핵심 개념인 [실제 의도와 반대로 표현했다]는 설명이 분명히 드러나야 합니다.');
+      }
+      if (!innerKeywords.some(k => text.includes(k))) {
+        reasons.push('일기 속 [실제 상황이나 나의 진짜 속마음]이 무엇이었는지 구체적으로 연결해 주세요.');
+      }
+      if (!surfaceKeywords.some(k => text.includes(k))) {
+        reasons.push('[겉으로 드러난 말의 뜻]과 속마음을 대조하여 독자를 설득해 주세요.');
+      }
+      if (text.includes('모순') && !text.includes('역설과 달리') && !text.includes('모순이 아니')) {
+        reasons.push('주의: [모순]은 주로 역설을 설명할 때 쓰는 개념입니다. 반어는 모순이 아니라 [의도와 반대로 말하기]임을 중심으로 설명해 주세요.');
+      }
+
+      return { valid: reasons.length === 0, reasons };
+    }
+
+    function validateParadoxReason(paradoxText, reasonText) {
+      const reasons = [];
+      const text = reasonText.trim();
+      if (!text) return { valid: false, reasons: ['역설 표현을 선택한 이유를 작성해 주세요.'] };
+      if (!paradoxText.trim()) reasons.push('먼저 [3단계: 역설 표현]을 작성해야 그 표현을 뒷받침할 수 있습니다.');
+
+      const contradictionKeywords = ['모순', '앞뒤가 맞지', '말이 안', '부딪', '상반', '대립', '충돌', '어울리지'];
+      const truthKeywords = ['진실', '진리', '속뜻', '진짜 의미', '깨달음', '전달', '담고', '의미하', '뜻하', '일기', '상황'];
+
+      if (!contradictionKeywords.some(k => text.includes(k))) {
+        reasons.push('역설의 첫 번째 조건인 [겉으로 보기에 앞뒤가 맞지 않는 모순]이 문장의 어느 부분에서 일어나는지 짚어주세요.');
+      }
+      if (!truthKeywords.some(k => text.includes(k))) {
+        reasons.push('역설의 두 번째 조건인 [그 모순 속에 담긴 진짜 의미(진실·깨달음)]가 무엇인지 일기 상황과 연결해 설득해 주세요.');
+      }
+
+      return { valid: reasons.length === 0, reasons };
+    }
+
+    // =========================================================================
+    // UI 제어 & 개인정보 비노출 마스킹 & 구글 스프레드시트 전송
+    // =========================================================================
+    let isMissionCompleted = false;
+    let remainingSeconds = 45 * 60;
+    let timerInterval = null;
+    let hasShownTimeOverAlert = false;
+
+    // 화면 표시용 개인정보 마스킹 함수 (학번 뒤 2자리, 이름 가운데 글자 가림)
+    function maskStudentInfo(id, name) {
+      const maskedId = id.length >= 3 ? id.slice(0, -2) + '**' : '***';
+      const maskedName = name.length >= 2
+        ? name[0] + '*' + (name.length > 2 ? name.slice(2) : '')
+        : '*';
+      return `${maskedId} / ${maskedName}`;
+    }
+
+    function goTab(tabNum) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', Number(btn.dataset.tab) === tabNum);
+      });
+      document.querySelectorAll('.panel').forEach(panel => {
+        panel.classList.toggle('active', panel.id === `panel-${tabNum}`);
+      });
+      syncReferences();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => goTab(Number(btn.dataset.tab)));
+    });
+
+    function syncReferences() {
+      const diary = document.getElementById('input-1').value.trim();
+      const irony = document.getElementById('input-2').value.trim();
+      const paradox = document.getElementById('input-3').value.trim();
+
+      document.getElementById('ref-diary-2').textContent = diary || '(아직 1단계 일기가 작성되지 않았습니다.)';
+      document.getElementById('ref-diary-3').textContent = diary || '(아직 1단계 일기가 작성되지 않았습니다.)';
+      document.getElementById('ref-irony').textContent = irony || '(아직 2단계 반어 표현이 작성되지 않았습니다.)';
+      document.getElementById('ref-paradox').textContent = paradox || '(아직 3단계 역설 표현이 작성되지 않았습니다.)';
+
+      const ctx = analyzeDiaryContext(diary);
+      const tag = document.getElementById('ctx-tag-2');
+      if (!diary) {
+        tag.textContent = '상황 맥락 대기 중';
+      } else if (ctx.mood === 'negative') {
+        tag.textContent = '분석된 일기 분위기: 부정적·곤란한 상황 → 반어는 긍정/감탄/칭찬 어조로 뒤집기!';
+      } else if (ctx.mood === 'positive') {
+        tag.textContent = '분석된 일기 분위기: 긍정적·기쁜 상황 → 반어는 아쉬움/불평 어조로 뒤집기!';
+      } else {
+        tag.textContent = '분석된 일기 분위기: 복합/서사 상황 → 속마음과 반대로 표현하기!';
+      }
+    }
+
+    function getValidationResult(tabNum) {
+      const d = document.getElementById('input-1').value;
+      const i = document.getElementById('input-2').value;
+      const p = document.getElementById('input-3').value;
+      const ir = document.getElementById('input-4').value;
+      const pr = document.getElementById('input-5').value;
+
+      if (tabNum === 1) return analyzeDiaryContext(d);
+      if (tabNum === 2) return validateIrony(d, i);
+      if (tabNum === 3) return validateParadox(d, i, p);
+      if (tabNum === 4) return validateIronyReason(i, ir);
+      if (tabNum === 5) return validateParadoxReason(p, pr);
+    }
+
+    function runTabCheck(tabNum) {
+      const res = getValidationResult(tabNum);
+      const fb = document.getElementById(`fb-${tabNum}`);
+      fb.classList.add('show');
+
+      if (res.valid) {
+        fb.className = 'feedback-box show pass';
+        const extra = (tabNum === 3 && res.matchedPair) ? ` (감지된 대립·모순 구조: <strong>${res.matchedPair}</strong>)` : '';
+        fb.innerHTML = `<strong>✅ 통과!</strong> 상황과 맥락에 맞는 논리 조건을 충족했습니다.${extra}`;
+      } else {
+        fb.className = 'feedback-box show fail';
+        fb.innerHTML = `<strong>⚠️ 보완이 필요합니다:</strong><ul>${res.reasons.map(r => `<li>${r}</li>`).join('')}</ul>`;
+      }
+      updateAllBadges();
+    }
+
+    function updateAllBadges() {
+      let passedCount = 0;
+      for (let t = 1; t <= 5; t++) {
+        const val = document.getElementById(`input-${t}`).value.trim();
+        const badge = document.getElementById(`badge-${t}`);
+        const res = getValidationResult(t);
+
+        if (!val) {
+          badge.textContent = '미작성';
+          badge.className = 'status-badge';
+        } else if (res.valid) {
+          passedCount++;
+          badge.textContent = '통과';
+          badge.className = 'status-badge done';
+        } else {
+          badge.textContent = '보완필요';
+          badge.className = 'status-badge working';
+        }
+      }
+      document.getElementById('progressCount').textContent = `${passedCount} / 5 탭 통과`;
+      document.getElementById('progressBarFill').style.width = `${(passedCount / 5) * 100}%`;
+      syncReferences();
+    }
+
+    for (let t = 1; t <= 5; t++) {
+      document.getElementById(`input-${t}`).addEventListener('input', updateAllBadges);
+    }
+
+    function formatTime(sec) {
+      const absSec = Math.abs(sec);
+      const m = String(Math.floor(absSec / 60)).padStart(2, '0');
+      const s = String(absSec % 60).padStart(2, '0');
+      return (sec < 0 ? '-' : '') + `${m}:${s}`;
+    }
+
+    function startTimer() {
+      timerInterval = setInterval(() => {
+        if (isMissionCompleted) return;
+        remainingSeconds--;
+        const display = document.getElementById('timerDisplay');
+        const box = document.getElementById('timerBox');
+        const statusText = document.getElementById('timerStatusText');
+        const panicBanner = document.getElementById('panicBanner');
+
+        display.textContent = formatTime(remainingSeconds);
+
+        if (remainingSeconds <= 600 && remainingSeconds > 180) {
+          box.classList.add('warning');
+          statusText.textContent = '⚠️ 10분 미만! 논증을 서두르세요!';
+          panicBanner.textContent = `⚠️ 종료 ${formatTime(remainingSeconds)} 전! 5개 탭의 반어·역설 검증을 모두 통과해야 합니다!`;
+        } else if (remainingSeconds <= 180 && remainingSeconds > 0) {
+          box.classList.remove('warning');
+          box.classList.add('urgent');
+          statusText.textContent = '🔥 마감 3분 전! 초비상!';
+          panicBanner.textContent = `🚨 마감 ${formatTime(remainingSeconds)} 전! 서둘러 미통과 탭을 보완하고 최종 완료를 누르세요!`;
+        } else if (remainingSeconds <= 0) {
+          box.classList.add('urgent');
+          statusText.textContent = '⏰ 45분 수업 시간 초과!';
+          panicBanner.textContent = '🚨 제한 시간이 초과되었습니다! 모든 탭의 검증을 통과해야 타이머가 멈춥니다!';
+          if (!hasShownTimeOverAlert) {
+            hasShownTimeOverAlert = true;
+            attemptFinish(true);
+          }
+        }
+      }, 1000);
+    }
+
+    async function attemptFinish(isTimeOverTrigger = false) {
+      const sIdInput = document.getElementById('studentId');
+      const sNameInput = document.getElementById('studentName');
+      const rawId = sIdInput.value.trim();
+      const rawName = sNameInput.value.trim();
+
+      const tabNames = {
+        1: '1단계: 하루의 일기',
+        2: '2단계: 반어 표현',
+        3: '3단계: 역설 표현',
+        4: '4단계: 반어 선택 이유',
+        5: '5단계: 역설 선택 이유'
+      };
+
+      const failedTabs = [];
+      const listEl = document.getElementById('incompleteList');
+      listEl.innerHTML = '';
+
+      if (!rawId || !rawName) {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>학생 정보 필수 입력</strong>: 상단에 학번과 이름을 모두 입력해야 제출할 수 있습니다.`;
+        listEl.appendChild(li);
+      }
+
+      for (let t = 1; t <= 5; t++) {
+        const res = getValidationResult(t);
+        runTabCheck(t);
+        if (!res.valid) {
+          failedTabs.push(t);
+          const li = document.createElement('li');
+          li.innerHTML = `<strong>${tabNames[t]}</strong>: ${res.reasons[0]}`;
+          listEl.appendChild(li);
+        }
+      }
+
+      if (!rawId || !rawName || failedTabs.length > 0) {
+        document.getElementById('alertModalTitle').textContent = isTimeOverTrigger
+          ? '⏰ 제한 시간 초과! 미통과 항목이 있습니다!'
+          : '🚨 검증 미통과 또는 필수 정보 누락!';
+        document.getElementById('alertModalDesc').innerHTML =
+          `학번·이름 입력과 5단계 반어·역설 논리 검증을 모두 통과해야 제출됩니다.<br/>남은 시간: <strong>${formatTime(remainingSeconds)}</strong>`;
+        document.getElementById('alertModal').classList.add('show');
+        if (failedTabs.length > 0) goTab(failedTabs[0]);
+        return;
+      }
+
+      // 5단계 모두 통과 → 구글 스프레드시트로 단방향 전송
+      const submitBtn = document.getElementById('finalSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ 선생님 스프레드시트로 안전하게 전송 중...';
+
+      const payload = {
+        name: rawName,
+        studentId: rawId,
+        score: 100,
+        passed: "통과",
+        submittedAt: new Date().toLocaleString('ko-KR'),
+        tab1: document.getElementById('input-1').value.trim(),
+        tab2: document.getElementById('input-2').value.trim(),
+        tab3: document.getElementById('input-3').value.trim(),
+        tab4: document.getElementById('input-4').value.trim(),
+        tab5: document.getElementById('input-5').value.trim()
+      };
+
+      try {
+        if (GOOGLE_SCRIPT_URL && GOOGLE_SCRIPT_URL.startsWith("https://")) {
+          await fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+        }
+      } catch (e) {
+        console.error("전송 오류:", e);
+      }
+
+      // 개인정보 보호: 전송 완료 즉시 입력창의 학번·이름 메모리 및 화면에서 완전 삭제
+      const maskedLabel = maskStudentInfo(rawId, rawName);
+      sIdInput.value = "";
+      sNameInput.value = "";
+
+      isMissionCompleted = true;
+      const box = document.getElementById('timerBox');
+      box.classList.remove('warning', 'urgent');
+      box.classList.add('completed');
+      document.getElementById('timerStatusText').textContent = '✅ 제출 완료! 타이머 정지';
+      document.getElementById('panicBanner').classList.add('hidden');
+
+      document.getElementById('finishMeta').textContent =
+        `제출자(비공개 마스킹): ${maskedLabel} | 선생님 시트 전송 완료 (${new Date().toLocaleTimeString('ko-KR')})`;
+
+      for (let t = 1; t <= 5; t++) {
+        document.getElementById(`rep-${t}`).textContent = document.getElementById(`input-${t}`).value.trim();
+      }
+
+      submitBtn.textContent = '✅ 제출 완료됨';
+      document.getElementById('successModal').classList.add('show');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('show');
+    }
+
+    function copyResult() {
+      // 복사본에도 이름·학번은 절대 포함되지 않음
+      const text = [
+        `[중2 국어: 반어와 역설 마스터 창작소 결과물]`,
+        `1. 하루의 일기`,
+        document.getElementById('input-1').value.trim(),
+        ``,
+        `2. 반어 표현`,
+        document.getElementById('input-2').value.trim(),
+        ``,
+        `3. 역설 표현`,
+        document.getElementById('input-3').value.trim(),
+        ``,
+        `4. 반어 표현을 선택한 이유`,
+        document.getElementById('input-4').value.trim(),
+        ``,
+        `5. 역설 표현을 선택한 이유`,
+        document.getElementById('input-5').value.trim()
+      ].join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert('개인정보(학번·이름)를 제외한 창작 내용이 클립보드에 복사되었습니다!');
+      });
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+      if (!isMissionCompleted) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    });
+
+    updateAllBadges();
+    startTimer();
+  </script>
+</body>
+</html>
